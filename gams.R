@@ -91,3 +91,100 @@ ggplot(aes(x= x, y= obs_val),data=ocat_predict)+
   geom_line(aes(y= prediction))+
   xlab("Air Temperature") + ylab("Probability") +
   theme_bw() 
+
+## added 13/5
+
+
+### Model comparison example
+
+dat <- data %>% 
+  filter(!is.na(OAH_num), !is.na(Air_Temp), !is.na(Wind_Speed), Wind_Speed < 100)
+
+gmod4 <- gam(OAH_num ~ s(Air_Temp), data=dat,family=ocat(R=5))
+gmod5 <- gam(OAH_num ~ s(Wind_Speed), data=dat,family=ocat(R=5))
+gmod6 <- gam(OAH_num ~ s(Air_Temp) + s(Wind_Speed), data=dat,family=ocat(R=5))
+gmod7 <- gam(OAH_num ~ s(Air_Temp,Wind_Speed), data=dat,family=ocat(R=5))
+AIC(gmod4,gmod5,gmod6,gmod7)
+
+# best model has lowest AIC
+gam.check(gmod6)
+
+# predictions for ocat responses are probabilities of falling into each category
+xx <- predict.gam(gmod6, type = "response")
+View(xx)
+
+### Prediction plots for models with more than one variable
+
+# try the same code as before to plot effect of air temp on risk
+
+mycols <- levels(dat$OAH)
+ocat_model <- gmod6
+ocat_predict = predict(ocat_model,type = "response")
+colnames(ocat_predict) = mycols
+ocat_predict = as.data.frame(ocat_predict)%>%
+  mutate(x= dat$Air_Temp,y=factor(dat$OAH_num, levels = 1:5, labels = mycols)) %>%
+  #mutate(x= fitted(ocat_model),y=as.numeric(dat$OAH_num))%>%
+  gather(pred_level,prediction,mycols) %>%
+  mutate(obs_val = as.numeric(y==pred_level)) %>%
+  mutate(pred_level = factor(pred_level, levels = mycols))
+
+ggplot(aes(x= x, y= obs_val),data=ocat_predict)+
+  facet_grid(.~pred_level)+
+  geom_point()+
+  geom_line(aes(y= prediction))+
+  xlab("Air Temperature") + ylab("Probability") +
+  theme_bw() 
+
+# note that this doesn't work, because we are not holding Wind Speed constant when we 
+# make predictions on our observed data (two observations might have the same Air Temp
+# but two different Wind Speeds -- they will end up with different predictions, which is
+# fine, but then we don't want to plot those values when assessing the MARGINAL effect
+# of Air Temp... that's why we get the jagged/sawtooth up-down pattern in the plot above)
+
+# we need to create a new dataset that varies Air Temp and holds Wind Speed constant
+
+mycols <- levels(dat$OAH)
+newdat <- data.frame(Air_Temp = seq(from = min(dat$Air_Temp), to = max(dat$Air_Temp), length.out = 500),
+                     Wind_Speed = mean(dat$Wind_Speed))
+
+# now we can use a similar plotting code to before, except applied to this newdata we created
+ocat_model <- gmod6
+# note use of "newdata" argument, so predictions are for this new data
+ocat_predict = predict(ocat_model, newdata = newdat, type = "response") 
+
+ocat_predict = as.data.frame(ocat_predict)
+colnames(ocat_predict) <- mycols
+ocat_predict <- ocat_predict %>%
+  mutate(x= newdat$Air_Temp) %>%
+  pivot_longer(1:5, names_to = "pred_level", values_to = "obs_val") 
+ocat_predict$pred_level <- factor(ocat_predict$pred_level, levels = mycols)
+
+ggplot(aes(x= x, y= obs_val),data=ocat_predict)+
+  facet_grid(.~pred_level)+
+  geom_line()+
+  xlab("Air Temperature") + ylab("Probability") +
+  theme_bw() 
+
+# do something similar for a plot of effect of wind speed
+
+newdat <- data.frame(Wind_Speed = seq(from = min(dat$Wind_Speed), to = max(dat$Wind_Speed), length.out = 500),
+                     Air_Temp = mean(dat$Air_Temp))
+
+ocat_model <- gmod6
+ocat_predict = predict(ocat_model, newdata = newdat, type = "response")
+ocat_predict = as.data.frame(ocat_predict)
+colnames(ocat_predict) <- mycols
+ocat_predict <- ocat_predict %>%
+  mutate(x= newdat$Wind_Speed) %>%
+  pivot_longer(1:5, names_to = "pred_level", values_to = "obs_val") 
+ocat_predict$pred_level <- factor(ocat_predict$pred_level, levels = mycols)
+
+ggplot(aes(x= x, y= obs_val),data=ocat_predict)+
+  facet_grid(.~pred_level)+
+  geom_line()+
+  xlab("Wind Speed") + ylab("Probability") +
+  theme_bw() 
+
+
+
+

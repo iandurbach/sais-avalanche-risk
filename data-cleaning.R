@@ -72,6 +72,24 @@ x$FAH_num = case_when(
 table(x$FAH_num)
 class(x$FAH_num)
 
+# spatial locations are saved in lat-long coordinates or UTM (x,y)
+# there are some erroneous locations so this just removes them manually
+
+x <- x %>% filter(Area == "Lochaber")
+plot(x$X, x$Y) # see there are some outliers
+centre_Lochaber <- c(220000, 770000)
+x <- x %>% 
+  mutate(d2centre = sqrt((X - centre_Lochaber[1])^2 + (Y - centre_Lochaber[2])^2)/1000)
+hist(x$d2centre)
+
+# remove any locations more than 12km from centre, this gets rid of the worst outliers
+x <- x %>% filter(d2centre <= 12)
+
+plot(x$X, x$Y)
+
+# remove any observations with missing coordinates
+x <- x %>% filter(!is.na(Lat), !is.na(Long))
+
 saveRDS(x, file = "output/cleaned_fulldataset.Rds")
 
 ##### HERE IS SOME EXTRA STUFF JUST FOR INTEREST
@@ -107,3 +125,13 @@ ggplot(x, aes(x = `Air Temp`)) + geom_density(aes(colour = FAH))
 # fit a simple regression, even though we know the response is discrete and non-normal
 model0 <- lm(FAH_num ~ `Air Temp`, data = x)
 summary(model0) # significant negative relationship between air temp and forecasts
+
+# plot on nice map
+library(sf)
+library(leaflet)
+
+x_sf <- st_as_sf(x, coords = c("Long", "Lat"), crs = 4326)
+pal <- colorFactor("YlOrRd", domain = x$Area)
+leaflet() %>%
+  addProviderTiles(provider= "OpenStreetMap") %>%
+  addCircles(data = x_sf2 %>% st_transform(4326), color = ~pal(Area), fillOpacity = 0.7, weight = 1, group = "editable")
