@@ -72,6 +72,31 @@ x$FAH_num = case_when(
 table(x$FAH_num)
 class(x$FAH_num)
 
+# recode date as day of the year, where 1 is first forecast day and N is last forecast day
+
+# what's the earliest date that's in the later months of the year?
+library(lubridate)
+library(dplyr)
+x <- x %>% mutate(year = year(Date), day_in_year = yday(Date))
+
+# drop any dates between 1 June and 1 Nov
+x <- x %>% filter(!((month(Date) > 5) & (month(Date) < 11)))
+
+
+x_temp <- x %>% filter(day_in_year > 180)
+x_temp %>% group_by(year) %>% summarize(earliest_forecast_date = min(Date),
+                                           earliest_forecast_date_yday = min(day_in_year)) %>%
+  ungroup()
+
+
+# looking through table, earliest forecast looks like 19 Nov, day 323 of year, 
+# so this should be day 1
+x <- x %>% mutate(days_since_19Nov = day_in_year - 323)
+
+# any negative value, we just need to take 365 + that value to get the right answer
+x <- x %>% mutate(days_since_19Nov = ifelse(days_since_19Nov < 0, 365 + days_since_19Nov,
+                                                  days_since_19Nov))
+
 # spatial locations are saved in lat-long coordinates or UTM (x,y)
 # there are some erroneous locations so this just removes them manually
 
@@ -89,6 +114,7 @@ plot(x$X, x$Y)
 
 # remove any observations with missing coordinates
 x <- x %>% filter(!is.na(Lat), !is.na(Long))
+
 
 saveRDS(x, file = "output/cleaned_fulldataset.Rds")
 

@@ -185,6 +185,15 @@ ggplot(aes(x= x, y= obs_val),data=ocat_predict)+
   xlab("Wind Speed") + ylab("Probability") +
   theme_bw() 
 
+## interactions
+
+data$Precip_Code <- factor(data$Precip_Code)
+gmod8 <- gam(OAH_num ~ te(Air_Temp,Wind_Speed) + te(X,Y) + s(days_since_19Nov), data=data,family=ocat(R=5))
+summary(gmod8)
+plot(gmod8)
+gam.check(gmod8)
+
+
 
 
 
